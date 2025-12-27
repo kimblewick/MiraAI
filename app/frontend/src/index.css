@@ -1,0 +1,303 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Outfit:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Premium muted palette - Swiss spa inspired */
+    --background: 30 15% 98%;
+    --foreground: 30 10% 10%;
+    --card: 30 15% 97%;
+    --card-foreground: 30 10% 10%;
+    --popover: 30 15% 98%;
+    --popover-foreground: 30 10% 10%;
+    --primary: 30 10% 15%;
+    --primary-foreground: 30 15% 98%;
+    --secondary: 30 10% 92%;
+    --secondary-foreground: 30 10% 20%;
+    --muted: 30 10% 94%;
+    --muted-foreground: 30 10% 45%;
+    --accent: 38 35% 72%;
+    --accent-foreground: 30 10% 10%;
+    --destructive: 0 55% 45%;
+    --destructive-foreground: 30 15% 98%;
+    --border: 30 10% 88%;
+    --input: 30 10% 88%;
+    --ring: 38 35% 65%;
+    --radius: 0.625rem;
+    
+    /* Custom astrology colors */
+    --celestial: 38 35% 72%;
+    --celestial-muted: 38 20% 85%;
+    --cosmos: 240 15% 25%;
+    --cosmos-light: 240 10% 40%;
+    --starlight: 45 80% 95%;
+    
+    /* Sidebar */
+    --sidebar-background: 30 15% 97%;
+    --sidebar-foreground: 30 10% 25%;
+    --sidebar-primary: 30 10% 15%;
+    --sidebar-primary-foreground: 30 15% 98%;
+    --sidebar-accent: 30 10% 94%;
+    --sidebar-accent-foreground: 30 10% 15%;
+    --sidebar-border: 30 10% 90%;
+    --sidebar-ring: 38 35% 65%;
+  }
+
+  .dark {
+    /* Dark mode - sophisticated deep charcoal with warm undertones */
+    --background: 30 8% 7%;
+    --foreground: 30 10% 92%;
+    --card: 30 8% 9%;
+    --card-foreground: 30 10% 92%;
+    --popover: 30 8% 8%;
+    --popover-foreground: 30 10% 92%;
+    --primary: 30 10% 92%;
+    --primary-foreground: 30 8% 7%;
+    --secondary: 30 8% 14%;
+    --secondary-foreground: 30 10% 90%;
+    --muted: 30 8% 14%;
+    --muted-foreground: 30 10% 55%;
+    --accent: 38 35% 55%;
+    --accent-foreground: 30 10% 92%;
+    --destructive: 0 55% 45%;
+    --destructive-foreground: 30 10% 92%;
+    --border: 30 8% 18%;
+    --input: 30 8% 18%;
+    --ring: 38 35% 55%;
+    
+    /* Custom astrology colors - dark mode */
+    --celestial: 38 35% 55%;
+    --celestial-muted: 38 20% 35%;
+    --cosmos: 240 15% 12%;
+    --cosmos-light: 240 10% 25%;
+    --starlight: 45 30% 85%;
+    
+    /* Sidebar - dark */
+    --sidebar-background: 30 8% 8%;
+    --sidebar-foreground: 30 10% 85%;
+    --sidebar-primary: 38 35% 55%;
+    --sidebar-primary-foreground: 30 8% 7%;
+    --sidebar-accent: 30 8% 14%;
+    --sidebar-accent-foreground: 30 10% 90%;
+    --sidebar-border: 30 8% 16%;
+    --sidebar-ring: 38 35% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  
+  html {
+    font-family: 'Outfit', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  
+  /* Premium typography */
+  h1, h2, h3, .font-display {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+  }
+  
+  h1 {
+    @apply text-4xl md:text-5xl lg:text-6xl;
+  }
+  
+  h2 {
+    @apply text-2xl md:text-3xl lg:text-4xl;
+  }
+  
+  h3 {
+    @apply text-xl md:text-2xl;
+  }
+}
+
+/* Custom scrollbar */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 3px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+  }
+  
+  /* Celestial glow effect */
+  .celestial-glow {
+    box-shadow: 
+      0 0 20px hsl(var(--celestial) / 0.15),
+      0 0 40px hsl(var(--celestial) / 0.1);
+  }
+  
+  .celestial-glow-strong {
+    box-shadow: 
+      0 0 30px hsl(var(--celestial) / 0.25),
+      0 0 60px hsl(var(--celestial) / 0.15);
+  }
+  
+  /* Subtle grain texture overlay */
+  .grain-overlay {
+    position: relative;
+  }
+  
+  .grain-overlay::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    opacity: 0.03;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+  }
+  
+  /* Text gradient */
+  .text-gradient-celestial {
+    background: linear-gradient(135deg, hsl(var(--celestial)) 0%, hsl(38 45% 60%) 50%, hsl(var(--celestial)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  /* Fade in animation */
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+  
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out forwards;
+  }
+  
+  .animate-fade-in-slow {
+    animation: fadeIn 1.2s ease-out forwards;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Subtle float animation */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .animate-float-slow {
+    animation: float 8s ease-in-out infinite;
+  }
+  
+  .animate-float-delayed {
+    animation: float 6s ease-in-out infinite;
+    animation-delay: 2s;
+  }
+  
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    50% {
+      transform: translateY(-10px) rotate(1deg);
+    }
+  }
+  
+  /* Star twinkle */
+  .animate-twinkle {
+    animation: twinkle 3s ease-in-out infinite;
+  }
+  
+  @keyframes twinkle {
+    0%, 100% {
+      opacity: 0.3;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+  }
+  
+  /* Orbit animation */
+  .animate-orbit {
+    animation: orbit 20s linear infinite;
+  }
+  
+  .animate-orbit-slow {
+    animation: orbit 30s linear infinite;
+  }
+  
+  .animate-orbit-reverse {
+    animation: orbit 25s linear infinite reverse;
+  }
+  
+  @keyframes orbit {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  
+  /* Pulse soft */
+  .animate-pulse-soft {
+    animation: pulseSoft 4s ease-in-out infinite;
+  }
+  
+  @keyframes pulseSoft {
+    0%, 100% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+}
+
+/* Ensure dark mode by default for this app */
+:root {
+  color-scheme: dark;
+}
+
+html {
+  @apply dark;
+}

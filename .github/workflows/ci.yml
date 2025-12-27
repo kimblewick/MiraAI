@@ -1,0 +1,1202 @@
+name: Project CI
+
+on:
+  pull_request:
+    branches: [ "main", "dev" ]
+  # push:
+  #   branches: [ "dev" ]
+
+jobs:
+  # 1. Validate PR Template Compliance
+  pr-template-check:
+    name: PR Template Compliance
+    runs-on: ubuntu-latest
+    env:
+      PR_BODY: ${{ github.event.pull_request.body }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Check PR Title Format
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          echo "PR Title: $TITLE"
+          
+          if ! [[ "$TITLE" =~ ^\[(Terraform|Backend|Frontend|Github|CICD|Doc|Test|Async)\] ]]; then
+            echo ""
+            echo "ERROR: PR title must start with a category tag"
+            echo ""
+            echo "Valid categories:"
+            echo "  [Terraform] - Infrastructure changes"
+            echo "  [Backend]   - Backend/Lambda code"
+            echo "  [Frontend]  - Frontend/UI code"
+            echo "  [Github]    - CI/CD or repo config"
+            echo "  [Doc]       - Documentation"
+            echo "  [Test]      - Testing"
+            echo "  [Async]     - Worker/async features"
+            echo ""
+            echo "Example: [Backend] Implement chat handler"
+            exit 1
+          fi
+          
+          echo "✅ PR title format is correct"
+
+      - name: Validate Required Sections
+        run: |
+          echo "Checking PR template compliance..."
+          echo "----- PR body (first 200 chars) -----"
+          echo "${PR_BODY:0:200}"
+          echo "-------------------------------------"
+
+          if [ -z "$PR_BODY" ]; then
+            echo "ERROR: PR body is empty"
+            echo ""
+            echo "Fix: Fill out the PR template with required sections"
+            echo "Template location: .github/pull_request_template.md"
+            exit 1
+          fi
+
+          REQUIRED_FIELDS=("## Summary" "## Linked Ticket" "## Changes" "## Testing")
+          MISSING=false
+
+          for field in "${REQUIRED_FIELDS[@]}"; do
+            if ! grep -q "$field" <<< "$PR_BODY"; then
+              echo "ERROR: Missing required section: $field"
+              MISSING=true
+            fi
+          done
+
+          if [ "$MISSING" = true ]; then
+            echo ""
+            echo "Fix: Add all required sections to your PR description"
+            echo "See .github/pull_request_template.md for the template"
+            exit 1
+          fi
+          
+          echo "✅ All required sections present"
+
+      - name: Verify Summary Section
+        run: |
+          echo "Checking Summary section..."
+          
+          # Extract Summary section
+          SUMMARY=$(echo "$PR_BODY" | sed -n '/## Summary/,/## Linked Ticket/p' | sed '1d;$d')
+          
+          # Check if it's just the template text
+          if echo "$SUMMARY" | grep -q "Describe the main changes"; then
+            echo "ERROR: Summary section contains template text"
+            echo ""
+            echo "Fix: Replace 'Describe the main changes introduced by this PR.'"
+            echo "      with an actual description of your changes"
+            exit 1
+          fi
+          
+          # Check if Summary is too short
+          WORD_COUNT=$(echo "$SUMMARY" | wc -w)
+          if [ $WORD_COUNT -lt 10 ]; then
+            echo "ERROR: Summary is too short ($WORD_COUNT words)"
+            echo ""
+            echo "Fix: Provide a meaningful summary (at least 10 words)"
+            echo "     Describe what this PR does and why"
+            exit 1
+          fi
+          
+          echo "✅ Summary section is filled out"
+
+      - name: Verify Notion Ticket Link
+        run: |
+          echo "Checking for Notion ticket link..."
+          
+          LINKED_TICKET=$(echo "$PR_BODY" | sed -n '/## Linked Ticket/,/## Changes/p')
+          if ! grep -q "notion.so" <<< "$LINKED_TICKET"; then
+            if ! grep -qi "N/A" <<< "$LINKED_TICKET"; then
+              echo "ERROR: No Notion ticket link found in Linked Ticket section"
+              echo ""
+              echo "Fix: Add a Notion ticket link OR explain why N/A"
+              echo ""
+              echo "Example with link:"
+              echo "  ## Linked Ticket"
+              echo "  [[Ticket Title](https://notion.so/...)]"
+              echo ""
+              echo "Example without link:"
+              echo "  ## Linked Ticket"
+              echo "  N/A - Minor typo fix"
+              exit 1
+            fi
+          fi
+          
+          if grep -q "change the title and link below" <<< "$LINKED_TICKET"; then
+            echo "ERROR: Linked Ticket section contains template text"
+            echo ""
+            echo "Fix: Remove '<change the title and link below>' and add your actual ticket link"
+            exit 1
+          fi
+          
+          echo "✅ Notion ticket section is valid"
+
+      - name: Verify Changes Section
+        run: |
+          echo "Checking Changes section..."
+          
+          # Extract Changes section
+          CHANGES=$(echo "$PR_BODY" | sed -n '/## Changes/,/## Testing/p')
+          
+          # Check if template text is still present
+          if echo "$CHANGES" | grep -q "(Keep only the relevant sections)"; then
+            echo "ERROR: Changes section contains template instructions"
+            echo ""
+            echo "Fix: Remove '(Keep only the relevant sections.)' and fill in your changes"
+            exit 1
+          fi
+          
+          # Check if section has actual content (not just the header)
+          # Remove the ## Changes line and check if there's content
+          CONTENT=$(echo "$CHANGES" | sed '1d' | sed '/^$/d')
+          
+          if [ -z "$CONTENT" ]; then
+            echo "ERROR: Changes section is empty"
+            echo ""
+            echo "Fix: Describe your changes"
+            echo "Accepted formats:"
+            echo "  - Backend: ..."
+            echo "  ### Backend"
+            echo "  - List item"
+            exit 1
+          fi
+          
+          # Check if there's meaningful content (at least one bullet point or subsection)
+          if ! echo "$CHANGES" | grep -qE "^-\s+\w+:|^###\s+\w+"; then
+            echo "ERROR: Changes section has no structured content"
+            echo ""
+            echo "Fix: Use bullet points or subsections to describe changes"
+            echo ""
+            echo "Example 1 (bullet points):"
+            echo "  - Backend: Added feature X"
+            echo "  - Frontend: Updated UI"
+            echo ""
+            echo "Example 2 (subsections):"
+            echo "  ### Backend"
+            echo "  - Added feature X"
+            exit 1
+          fi
+          
+          echo "✅ Changes section is filled out"
+
+      - name: Verify Testing Section
+        run: |
+          echo "Checking Testing section..."
+          
+          # Extract Testing section (everything between ## Testing and ## Checklist)
+          TESTING=$(echo "$PR_BODY" | sed -n '/## Testing/,/## Checklist/p')
+          
+          # Check for template text
+          if echo "$TESTING" | grep -q "Describe how you tested this change"; then
+            echo "ERROR: Testing section contains template text"
+            echo ""
+            echo "Fix: Replace template with actual test information"
+            exit 1
+          fi
+          
+          # Remove the ## Testing header and empty lines
+          CONTENT=$(echo "$TESTING" | sed '1d' | sed '/^$/d')
+          
+          if [ -z "$CONTENT" ]; then
+            echo "ERROR: Testing section is empty"
+            echo ""
+            echo "Fix: Describe testing OR explain N/A"
+            exit 1
+          fi
+          
+          # Check if actual testing info is present
+          # Look for: Step, tested, verified, N/A, code blocks, etc.
+          # Split the pattern to avoid backtick issues
+          HAS_TESTING=false
+          
+          if echo "$TESTING" | grep -qiE "(step|tested|verified|validation)"; then
+            HAS_TESTING=true
+          elif echo "$TESTING" | grep -qi "n/a"; then
+            HAS_TESTING=true
+          elif echo "$TESTING" | grep -q '```'; then
+            HAS_TESTING=true
+          elif echo "$TESTING" | grep -qiE "(manual|integration|local)"; then
+            HAS_TESTING=true
+          fi
+          
+          if [ "$HAS_TESTING" = false ]; then
+            echo "ERROR: No testing information found"
+            echo ""
+            echo "Fix: Add testing details:"
+            echo "  - Describe test steps"
+            echo "  - Include expected results"
+            echo "  - OR explain: Testing: N/A (docs only)"
+            exit 1
+          fi
+          
+          echo "✅ Testing section is filled out"
+
+  # 2. Backend Python Checks
+  python-backend:
+    name: Backend Python CI
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - id: check_backend
+        name: Check if backend exists
+        run: |
+          if [ -d "app/backend" ] && [ "$(ls -A app/backend)" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Python
+        if: steps.check_backend.outputs.exists == 'true'
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install Dependencies
+        if: steps.check_backend.outputs.exists == 'true'
+        run: |
+          if [ -f "app/backend/requirements.txt" ]; then
+            pip install -r app/backend/requirements.txt
+            pip install flake8 black pytest pytest-cov isort
+          else
+            echo "No backend requirements found. Skipping."
+          fi
+
+      - name: Python Syntax Check
+        if: steps.check_backend.outputs.exists == 'true'
+        run: |
+          echo "Checking Python syntax..."
+          FILES="$(git ls-files '*.py')"
+          if [ -z "$FILES" ]; then
+            echo "No Python files found. Skipping syntax check."
+            exit 0
+          fi
+          
+          if ! python -m py_compile $FILES; then
+            echo ""
+            echo "ERROR: Python syntax errors found"
+            echo ""
+            echo "Fix: Check the error messages above for specific syntax issues"
+            echo "Common issues:"
+            echo "  - Missing colons (:)"
+            echo "  - Incorrect indentation"
+            echo "  - Unclosed parentheses/brackets"
+            exit 1
+          fi
+          echo "✅ Python syntax check passed"
+
+      - name: Black Format Check
+        if: steps.check_backend.outputs.exists == 'true'
+        run: |
+          echo "Checking code formatting with black..."
+          
+          if ! black --check app/backend --exclude venv --line-length=120; then
+            echo ""
+            echo "ERROR: Code formatting issues found"
+            echo ""
+            echo "Fix: Run the following command to auto-format your code:"
+            echo "  cd app/backend"
+            echo "  black . --exclude venv --line-length=120"
+            echo "  git add ."
+            echo "  git commit --amend --no-edit"
+            echo "  git push --force-with-lease"
+            exit 1
+          fi
+          echo "✅ Code formatting is correct"
+
+      - name: Flake8 Lint
+        if: steps.check_backend.outputs.exists == 'true'
+        run: |
+          echo "Running flake8 linting..."
+          
+          if ! flake8 app/backend --exclude=venv --max-line-length=120 --ignore=E203,W503; then
+            echo ""
+            echo "ERROR: Code style issues found"
+            echo ""
+            echo "Fix: Review the errors above and fix them manually, or:"
+            echo "  - For unused imports: Remove them"
+            echo "  - For unused variables: Remove or use them"
+            echo "  - For line length: Break long lines"
+            echo ""
+            echo "To check locally:"
+            echo "  cd app/backend"
+            echo "  flake8 . --exclude=venv --max-line-length=120 --ignore=E203,W503"
+            exit 1
+          fi
+          echo "✅ Flake8 linting passed"
+
+      - name: Check Import Sorting
+        if: steps.check_backend.outputs.exists == 'true'
+        continue-on-error: true  # Non-blocking warning
+        run: |
+          echo "Checking import sorting with isort..."
+          
+          if ! isort --check-only app/backend --profile black --line-length 120 --skip venv; then
+            echo ""
+            echo "WARNING: Imports are not sorted (non-blocking)"
+            echo ""
+            echo "Imports should be sorted for better readability"
+            echo ""
+            echo "Fix (optional but recommended):"
+            echo "  cd app/backend"
+            echo "  isort . --profile black --line-length 120 --skip venv"
+            echo "  git add ."
+            echo "  git commit --amend --no-edit"
+            echo "  git push --force-with-lease"
+            echo ""
+            echo "This is a warning only - PR will not be blocked"
+          else
+            echo "✅ Imports are properly sorted"
+          fi
+
+      - name: Check Lambda Package Size
+        if: steps.check_backend.outputs.exists == 'true'
+        run: |
+          echo "Checking Lambda deployment package size..."
+          cd app/backend
+          
+          # Create temp package directory
+          mkdir -p /tmp/lambda-package
+          
+          # Install dependencies
+          echo "Installing dependencies..."
+          pip install -r requirements.txt -t /tmp/lambda-package --quiet
+          
+          # Copy application code
+          echo "Copying application code..."
+          if [ -d "api" ]; then cp -r api /tmp/lambda-package/; fi
+          if [ -d "common" ]; then cp -r common /tmp/lambda-package/; fi
+          cp *.py /tmp/lambda-package/ 2>/dev/null || true
+          
+          # Calculate size
+          SIZE=$(du -sm /tmp/lambda-package | cut -f1)
+          
+          echo ""
+          echo "================================================"
+          echo "Lambda Package Size: ${SIZE}MB"
+          echo "================================================"
+          
+          # AWS Lambda limits:
+          # - Unzipped: 250MB max
+          # - Zipped: 50MB max
+          # We recommend staying under 200MB unzipped
+          
+          if [ $SIZE -gt 200 ]; then
+            echo ""
+            echo "ERROR: Package too large (${SIZE}MB > 200MB recommended limit)"
+            echo ""
+            echo "AWS Lambda limits:"
+            echo "  - Maximum unzipped size: 250MB"
+            echo "  - Maximum zipped size: 50MB"
+            echo "  - Your package: ${SIZE}MB unzipped"
+            echo ""
+            echo "Fix: Reduce package size by:"
+            echo "  1. Remove unused dependencies from requirements.txt"
+            echo "  2. Use Lambda Layers for large libraries"
+            echo "  3. Exclude unnecessary files (.pyc, __pycache__, tests)"
+            echo ""
+            echo "Check largest dependencies:"
+            echo "  pip list --format=freeze | xargs pip show | grep -E 'Name|Size'"
+            exit 1
+          elif [ $SIZE -gt 150 ]; then
+            echo "⚠️  WARNING: Package is large (${SIZE}MB)"
+            echo "Consider optimizing to stay under 150MB for better cold start performance"
+          else
+            echo "✅ Package size is good (${SIZE}MB < 150MB)"
+          fi
+
+      - name: Test Coverage Report
+        if: steps.check_backend.outputs.exists == 'true'
+        continue-on-error: true  # Non-blocking for MVP
+        run: |
+          echo "Running test coverage analysis..."
+          cd app/backend
+          
+          pip install pytest-cov
+          
+          # Check if tests exist
+          if find . -name "test_*.py" -o -name "*_test.py" | grep -q .; then
+            echo "Running pytest with coverage..."
+            
+            # Run tests with coverage
+            pytest --cov=. --cov-report=term-missing --cov-report=html --cov-config=/dev/null || true
+            
+            # Try to extract coverage percentage
+            COVERAGE_OUTPUT=$(pytest --cov=. --cov-report=term 2>&1 || true)
+            
+            if echo "$COVERAGE_OUTPUT" | grep -q "TOTAL"; then
+              COVERAGE=$(echo "$COVERAGE_OUTPUT" | grep "TOTAL" | awk '{print $NF}' | sed 's/%//')
+              
+              echo ""
+              echo "================================================"
+              echo "Test Coverage: ${COVERAGE}%"
+              echo "================================================"
+              
+              if [ ! -z "$COVERAGE" ] && [ $COVERAGE -lt 50 ]; then
+                echo "⚠️  WARNING: Coverage is low (${COVERAGE}% < 50%)"
+                echo "Consider adding more unit tests"
+              elif [ ! -z "$COVERAGE" ] && [ $COVERAGE -lt 70 ]; then
+                echo "📊 Coverage: ${COVERAGE}% (Good, aim for 70%+)"
+              else
+                echo "✅ Excellent test coverage (${COVERAGE}%)"
+              fi
+            fi
+            
+            echo ""
+            echo "Coverage report saved to htmlcov/index.html (local only)"
+          else
+            echo "No tests found - skipping coverage analysis"
+            echo ""
+            echo "💡 Tip: Add unit tests to improve code quality"
+            echo "   Create files: test_*.py or *_test.py"
+          fi
+
+      - name: Run Backend Tests
+        if: steps.check_backend.outputs.exists == 'true'
+        run: |
+          echo "Running backend tests..."
+          cd app/backend
+          
+          # Run api_wrapper tests
+          if [ -f "common/api_wrapper.py" ]; then
+            echo "Testing API wrapper..."
+            if ! python common/api_wrapper.py; then
+              echo ""
+              echo "ERROR: API wrapper tests failed"
+              echo ""
+              echo "Fix: Check the error messages above"
+              echo "Test locally: python app/backend/common/api_wrapper.py"
+              exit 1
+            fi
+          fi
+          
+          # Run pytest if test files exist
+          if find . -name "test_*.py" -o -name "*_test.py" | grep -q .; then
+            echo "Running pytest..."
+            if ! pytest -v; then
+              echo ""
+              echo "ERROR: Unit tests failed"
+              echo ""
+              echo "Fix: Check the error messages above"
+              echo "Test locally: cd app/backend && pytest -v"
+              exit 1
+            fi
+            echo "✅ All tests passed"
+          else
+            echo "No pytest tests found. Skipping."
+          fi
+          
+          echo "✅ All backend tests passed"
+
+  # 3. Frontend Checks
+  frontend-build:
+    name: Frontend Build & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - id: check_frontend
+        name: Check if frontend exists
+        run: |
+          if [ -d "app/frontend" ] && [ "$(ls -A app/frontend)" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Detect package.json
+        if: steps.check_frontend.outputs.exists == 'true'
+        id: detect_pkg
+        run: |
+          if [ -f "app/frontend/package.json" ]; then
+            echo "found=true" >> $GITHUB_OUTPUT
+          else
+            echo "found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node
+        if: steps.detect_pkg.outputs.found == 'true'
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: Install Dependencies
+        if: steps.detect_pkg.outputs.found == 'true'
+        run: |
+          cd app/frontend
+          echo "Installing dependencies..."
+          npm install
+
+      - name: Verify Required Scripts
+        if: steps.detect_pkg.outputs.found == 'true'
+        run: |
+          cd app/frontend
+          echo "Checking package.json scripts..."
+          
+          REQUIRED_SCRIPTS=("build" "dev")
+          MISSING=false
+          
+          for script in "${REQUIRED_SCRIPTS[@]}"; do
+            if ! grep -q "\"$script\":" package.json; then
+              echo "ERROR: Missing required script: $script"
+              MISSING=true
+            fi
+          done
+          
+          if [ "$MISSING" = true ]; then
+            echo ""
+            echo "Fix: Add required scripts to package.json:"
+            echo '  "scripts": {'
+            echo '    "dev": "...",  '
+            echo '    "build": "..."'
+            echo '  }'
+            exit 1
+          fi
+          
+          echo "✅ Required scripts present"
+
+      - name: TypeScript Type Check
+        if: steps.detect_pkg.outputs.found == 'true'
+        continue-on-error: true  # Non-blocking warning
+        run: |
+          cd app/frontend
+          
+          if [ -f "tsconfig.json" ]; then
+            echo "Running TypeScript type check..."
+            
+            if ! npx tsc --noEmit; then
+              echo ""
+              echo "WARNING: TypeScript type errors found (non-blocking)"
+              echo ""
+              echo "Fix: Review type errors above"
+              echo "Common fixes:"
+              echo "  - Add proper type annotations"
+              echo "  - Fix any vs proper types"
+              echo "  - Add missing @types/* packages"
+              echo ""
+              echo "Test locally:"
+              echo "  cd app/frontend"
+              echo "  npx tsc --noEmit"
+            else
+              echo "✅ No TypeScript errors"
+            fi
+          else
+            echo "No tsconfig.json found - skipping type check"
+          fi
+
+      - name: ESLint Check
+        if: steps.detect_pkg.outputs.found == 'true'
+        run: |
+          cd app/frontend
+          echo "Running ESLint..."
+          
+          # Check if lint script exists
+          if ! grep -q '"lint"' package.json; then
+            echo "WARNING: No lint script found in package.json"
+            echo "Skipping ESLint check"
+            exit 0
+          fi
+          
+          if ! npm run lint; then
+            echo ""
+            echo "ERROR: ESLint issues found"
+            echo ""
+            echo "Fix: Review the linting errors above"
+            echo "Common fixes:"
+            echo "  - Remove unused imports/variables"
+            echo "  - Fix React Hook dependencies"
+            echo "  - Fix missing keys in lists"
+            echo "  - Add missing prop types"
+            echo ""
+            echo "To fix automatically (some issues):"
+            echo "  cd app/frontend"
+            echo "  npm run lint -- --fix"
+            echo ""
+            echo "Test locally:"
+            echo "  cd app/frontend"
+            echo "  npm run lint"
+            exit 1
+          fi
+          
+          echo "✅ ESLint check passed"
+
+      - name: Check Bundle Size
+        if: steps.detect_pkg.outputs.found == 'true'
+        continue-on-error: true  # Non-blocking warning
+        run: |
+          cd app/frontend
+          echo "Checking bundle size..."
+          
+          npm run build
+          
+          if [ -d "dist" ]; then
+            BUNDLE_SIZE=$(du -sm dist | cut -f1)
+            
+            echo ""
+            echo "================================================"
+            echo "Bundle Size: ${BUNDLE_SIZE}MB"
+            echo "================================================"
+            
+            if [ $BUNDLE_SIZE -gt 10 ]; then
+              echo "⚠️  WARNING: Large bundle (${BUNDLE_SIZE}MB > 10MB)"
+              echo ""
+              echo "Large bundles increase load time"
+              echo ""
+              echo "Consider:"
+              echo "  - Code splitting (React.lazy, dynamic imports)"
+              echo "  - Tree shaking unused code"
+              echo "  - Lazy loading heavy components"
+              echo "  - Analyzing bundle: npm run build -- --analyze"
+            elif [ $BUNDLE_SIZE -gt 5 ]; then
+              echo "📊 Bundle size is acceptable (${BUNDLE_SIZE}MB)"
+              echo "Consider optimization if targeting mobile users"
+            else
+              echo "✅ Excellent bundle size (${BUNDLE_SIZE}MB)"
+            fi
+          fi
+
+      - name: Check Environment Variables
+        if: steps.detect_pkg.outputs.found == 'true'
+        run: |
+          cd app/frontend
+          echo "Checking for hardcoded values..."
+          
+          # Check if .env.example exists
+          if [ ! -f ".env.example" ]; then
+            echo "WARNING: No .env.example file found"
+            echo "Consider creating one to document required environment variables"
+          fi
+          
+          # Check for potential hardcoded API URLs
+          if grep -r "https://.*\.execute-api\." src/ 2>/dev/null | grep -v "VITE_\|REACT_APP_\|process.env"; then
+            echo ""
+            echo "WARNING: Potential hardcoded API URLs found"
+            echo ""
+            echo "Use environment variables instead:"
+            echo "  const API_URL = import.meta.env.VITE_API_URL"
+            echo ""
+            echo "Add to .env.example:"
+            echo "  VITE_API_URL=https://..."
+          fi
+          
+          echo "✅ Environment variable check complete"
+
+      - name: Build Frontend
+        if: steps.detect_pkg.outputs.found == 'true'
+        run: |
+          cd app/frontend
+          echo "Building frontend..."
+          
+          if ! npm run build; then
+            echo ""
+            echo "ERROR: Frontend build failed"
+            echo ""
+            echo "Fix: Check the error messages above"
+            echo "Common issues:"
+            echo "  - TypeScript type errors"
+            echo "  - Missing dependencies"
+            echo "  - Syntax errors in JSX/TSX files"
+            echo "  - Import errors"
+            echo "  - Missing environment variables"
+            echo ""
+            echo "Test locally:"
+            echo "  cd app/frontend"
+            echo "  npm install"
+            echo "  npm run build"
+            exit 1
+          fi
+          echo "✅ Frontend build successful"
+
+      - name: Run Frontend Tests
+        if: steps.detect_pkg.outputs.found == 'true'
+        continue-on-error: true  # Non-blocking for MVP
+        run: |
+          cd app/frontend
+          
+          if grep -q '"test"' package.json; then
+            echo "Running frontend tests..."
+            
+            if ! npm test -- --run; then
+              echo "WARNING: Some tests failed (non-blocking)"
+            else
+              echo "✅ All frontend tests passed"
+            fi
+          else
+            echo "No test script found - skipping"
+            echo ""
+            echo "💡 Tip: Add frontend tests with Vitest or Jest"
+          fi
+
+  # 4. Terraform Validation
+  terraform-validate:
+    name: Terraform Validate & Format
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - id: check_tf
+        name: Check for Terraform files
+        run: |
+          echo "Searching for .tf files in infra/..."
+          if find infra -name "*.tf" -type f | grep -q .; then
+            TF_COUNT=$(find infra -name "*.tf" -type f | wc -l)
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Found $TF_COUNT Terraform files"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "No Terraform files found"
+          fi
+
+      - name: Install Terraform
+        if: steps.check_tf.outputs.exists == 'true'
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Terraform Format Check
+        if: steps.check_tf.outputs.exists == 'true'
+        run: |
+          cd infra/terraform
+          echo "Checking Terraform formatting..."
+          
+          if ! terraform fmt -check -recursive; then
+            echo ""
+            echo "ERROR: Terraform files need formatting"
+            echo ""
+            echo "Fix: Run the following commands to auto-format:"
+            echo "  cd infra/terraform"
+            echo "  terraform fmt -recursive"
+            echo "  git add ."
+            echo "  git commit --amend --no-edit"
+            echo "  git push --force-with-lease"
+            echo ""
+            echo "Files needing formatting are listed above"
+            exit 1
+          fi
+          echo "✅ All Terraform files properly formatted"
+
+      - name: Check for Hardcoded Secrets
+        if: steps.check_tf.outputs.exists == 'true'
+        run: |
+          cd infra/terraform
+          echo "Checking for hardcoded secrets..."
+          
+          ISSUES_FOUND=false
+          
+          # Check for hardcoded passwords
+          echo "Checking for hardcoded passwords..."
+          if grep -r 'password\s*=\s*"[^$]' . --include="*.tf" --exclude-dir=.terraform; then
+            echo "ERROR: Hardcoded password found in Terraform files"
+            ISSUES_FOUND=true
+          fi
+          
+          # Check for hardcoded secrets
+          echo "Checking for hardcoded secrets..."
+          if grep -r 'secret\s*=\s*"[^$]' . --include="*.tf" --exclude-dir=.terraform; then
+            echo "ERROR: Potential hardcoded secret found"
+            ISSUES_FOUND=true
+          fi
+          
+          # Check for hardcoded API keys
+          echo "Checking for hardcoded API keys..."
+          if grep -r 'api_key\s*=\s*"[^$]' . --include="*.tf" --exclude-dir=.terraform; then
+            echo "ERROR: Hardcoded API key found"
+            ISSUES_FOUND=true
+          fi
+          
+          if [ "$ISSUES_FOUND" = true ]; then
+            echo ""
+            echo "Fix: Use variables or AWS Secrets Manager instead"
+            echo ""
+            echo "Good examples:"
+            echo '  password = var.db_password'
+            echo '  api_key  = data.aws_secretsmanager_secret_version.api_key.secret_string'
+            echo ""
+            echo "SECURITY RISK: Never hardcode secrets in Terraform!"
+            exit 1
+          fi
+          
+          echo "✅ No hardcoded secrets found"
+
+      - name: Terraform Init
+        if: steps.check_tf.outputs.exists == 'true'
+        run: |
+          cd infra/terraform
+          echo "Initializing Terraform..."
+          
+          if ! terraform init -backend=false; then
+            echo ""
+            echo "ERROR: Terraform initialization failed"
+            echo ""
+            echo "Common issues:"
+            echo "  - Invalid provider configuration"
+            echo "  - Missing required providers"
+            echo "  - Syntax errors in .tf files"
+            echo ""
+            echo "Test locally:"
+            echo "  cd infra/terraform"
+            echo "  terraform init -backend=false"
+            exit 1
+          fi
+          echo "✅ Terraform initialized successfully"
+
+      - name: Terraform Validate
+        if: steps.check_tf.outputs.exists == 'true'
+        run: |
+          cd infra/terraform
+          echo "Validating Terraform configuration..."
+          
+          if ! terraform validate; then
+            echo ""
+            echo "ERROR: Terraform validation failed"
+            echo ""
+            echo "Common issues:"
+            echo "  - Missing required variables"
+            echo "  - Invalid resource references"
+            echo "  - Type mismatches"
+            echo "  - Circular dependencies"
+            echo ""
+            echo "Test locally:"
+            echo "  cd infra/terraform"
+            echo "  terraform init -backend=false"
+            echo "  terraform validate"
+            exit 1
+          fi
+          echo "✅ Terraform configuration is valid"
+
+      - name: Terraform Security Scan (tfsec)
+        if: steps.check_tf.outputs.exists == 'true'
+        continue-on-error: true  # Non-blocking warning
+        run: |
+          echo "Running tfsec security scan..."
+          
+          # Install tfsec
+          curl -L -o tfsec https://github.com/aquasecurity/tfsec/releases/download/v1.28.1/tfsec-linux-amd64
+          chmod +x tfsec
+          
+          cd infra/terraform
+          
+          echo ""
+          echo "================================================"
+          echo "Terraform Security Scan Results"
+          echo "================================================"
+          
+          if ! ../../tfsec . --soft-fail --format default; then
+            echo ""
+            echo "⚠️  Security issues found (non-blocking)"
+            echo ""
+            echo "Common issues tfsec checks:"
+            echo "  - S3 buckets without encryption"
+            echo "  - Security groups with 0.0.0.0/0 access"
+            echo "  - IAM policies that are too permissive"
+            echo "  - Resources without tags"
+            echo "  - Unencrypted data at rest"
+            echo "  - Missing logging/monitoring"
+            echo ""
+            echo "Review the report above and address HIGH/CRITICAL severity issues"
+            echo ""
+            echo "To check locally:"
+            echo "  cd infra/terraform"
+            echo "  tfsec ."
+          else
+            echo "✅ No critical security issues detected"
+          fi
+
+      - name: Check Resource Naming Convention
+        if: steps.check_tf.outputs.exists == 'true'
+        continue-on-error: true  
+        run: |
+          cd infra/terraform
+          echo "Checking resource naming conventions..."
+          
+          # Extract resource names
+          RESOURCES=$(grep -rh 'name\s*=\s*"' . --include="*.tf" --exclude-dir=.terraform | grep -v '#' || true)
+          
+          BAD_NAMES=false
+          
+          # Check if names follow pattern: mira-<resource>-<env>
+          # or use variables
+          echo "$RESOURCES" | while read -r line; do
+            if echo "$line" | grep -q 'name.*=.*"[^$]'; then
+              NAME=$(echo "$line" | sed 's/.*name.*=.*"\([^"]*\)".*/\1/')
+              
+              # Skip if it's a variable reference or module
+              if [[ "$NAME" == *'${'* ]] || [[ "$NAME" == *'var.'* ]]; then
+                continue
+              fi
+              
+              # Check if follows naming convention
+              if ! [[ "$NAME" =~ ^mira- ]] && ! [[ "$NAME" =~ -dev$ ]] && ! [[ "$NAME" =~ -prod$ ]]; then
+                echo "⚠️  Resource name may not follow convention: $NAME"
+                BAD_NAMES=true
+              fi
+            fi
+          done
+          
+          if [ "$BAD_NAMES" = true ]; then
+            echo ""
+            echo "Recommended naming pattern: mira-<resource>-<env>"
+            echo "Examples:"
+            echo "  - mira-vpc-dev"
+            echo "  - mira-lambda-api-dev"
+            echo "  - mira-db-prod"
+            echo ""
+            echo "Or use variables for consistency:"
+            echo '  name = "${var.project_name}-${var.resource_type}-${var.environment}"'
+          fi
+          
+          echo "✅ Naming convention check complete"
+
+      - name: Check Variable Usage Best Practices
+        if: steps.check_tf.outputs.exists == 'true'
+        continue-on-error: true
+        run: |
+          cd infra/terraform
+          echo "Checking variable usage best practices..."
+          
+          # Check if variables.tf exists
+          if [ ! -f "variables.tf" ]; then
+            if ! find modules -name "variables.tf" | grep -q .; then
+              echo "⚠️  WARNING: No variables.tf found"
+              echo ""
+              echo "Best practice: Define variables for:"
+              echo "  - environment (dev/staging/prod)"
+              echo "  - region"
+              echo "  - project_name"
+              echo "  - common_tags"
+            fi
+          fi
+          
+          # Check for hardcoded values that should be variables
+          echo "Checking for values that should be variables..."
+          
+          # Check hardcoded regions
+          HARDCODED_REGIONS=$(grep -r 'region.*=.*"us-' . --include="*.tf" --exclude-dir=.terraform | grep -v 'var\.' | grep -v '#' || true)
+          
+          if [ -n "$HARDCODED_REGIONS" ]; then
+            echo "⚠️  Found hardcoded AWS regions"
+            echo "Consider using: region = var.aws_region"
+          fi
+          
+          # Check hardcoded environment names
+          HARDCODED_ENV=$(grep -r '"dev"\|"prod"\|"staging"' . --include="*.tf" --exclude-dir=.terraform | grep -v 'var\.' | head -5 || true)
+          
+          if [ -n "$HARDCODED_ENV" ]; then
+            echo "⚠️  Found hardcoded environment names"
+            echo "Consider using: var.environment"
+          fi
+          
+          echo "✅ Variable usage check complete"
+
+  # 5. Security & Secrets Scan
+  security-scan:
+    name: Security & Secrets Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Scan for AWS Credentials
+        run: |
+          echo "Scanning for AWS credentials..."
+          if grep -R "AKIA[0-9A-Z]\{16\}" -n . --exclude-dir=node_modules --exclude-dir=venv --exclude-dir=dist --exclude-dir=.terraform; then
+            echo ""
+            echo "ERROR: AWS Access Key detected in code!"
+            echo ""
+            echo "Fix: Remove the AWS credentials from your code"
+            echo "  1. Find the file(s) listed above"
+            echo "  2. Remove the AKIA... key"
+            echo "  3. Use AWS Secrets Manager or environment variables instead"
+            echo "  4. Commit the change"
+            echo ""
+            echo "SECURITY RISK: Never commit AWS credentials to Git!"
+            exit 1
+          fi
+          echo "✅ No AWS access keys found"
+
+      - name: Scan for AWS Secret Keys
+        run: |
+          echo "Scanning for AWS secret access keys..."
+          # Pattern: 40 alphanumeric chars (AWS secret key format)
+          if grep -rE "['\"]?[A-Za-z0-9/+=]{40}['\"]?" . \
+            --exclude-dir=node_modules \
+            --exclude-dir=venv \
+            --exclude-dir=dist \
+            --exclude-dir=.terraform \
+            --exclude-dir=.git \
+            --include="*.py" \
+            --include="*.js" \
+            --include="*.ts" \
+            --include="*.tf" \
+            | grep -i "secret\|aws" \
+            | grep -v "secretsmanager\|secret_string"; then
+            
+            echo ""
+            echo "WARNING: Potential AWS secret key pattern detected"
+            echo "Review the matches above to ensure no secrets are committed"
+          fi
+          
+          echo "✅ AWS secret key scan complete"
+
+      - name: Scan for Private Keys
+        run: |
+          echo "Scanning for private keys..."
+          if grep -R "BEGIN.*PRIVATE KEY" -n . \
+            --exclude-dir=node_modules \
+            --exclude-dir=venv \
+            --exclude-dir=dist \
+            --exclude-dir=.terraform \
+            --exclude=ci.yml; then
+            echo ""
+            echo "ERROR: Private key detected in code!"
+            echo ""
+            echo "Fix: Remove the private key from your code"
+            echo "  1. Find the file(s) listed above"
+            echo "  2. Remove the private key"
+            echo "  3. Store it securely in AWS Secrets Manager"
+            echo "  4. Add the file to .gitignore if it's a key file"
+            echo ""
+            echo "SECURITY RISK: Never commit private keys to Git!"
+            exit 1
+          fi
+          echo "✅ No private keys found"
+
+      - name: Scan for Hardcoded Tokens
+        run: |
+          echo "Scanning for hardcoded tokens..."
+          
+          # Check for JWT tokens
+          if grep -rE "eyJ[A-Za-z0-9_-]{20,}" . \
+            --exclude-dir=node_modules \
+            --exclude-dir=venv \
+            --exclude-dir=dist \
+            --exclude-dir=.terraform \
+            --include="*.py" \
+            --include="*.js" \
+            --include="*.ts" \
+            --include="*.md" \
+            | grep -v "example\|sample\|test\|Bearer"; then
+            
+            echo ""
+            echo "WARNING: Potential JWT token detected"
+            echo "Ensure these are example tokens, not real credentials"
+          fi
+          
+          echo "✅ Token scan complete"
+
+      - name: Scan for Database Connection Strings
+        run: |
+          echo "Scanning for database connection strings..."
+          
+          # Check for connection strings with passwords
+          if grep -rE "postgresql://[^:]+:[^@]+@\|mysql://[^:]+:[^@]+@\|mongodb://[^:]+:[^@]+@" . \
+            --exclude-dir=node_modules \
+            --exclude-dir=venv \
+            --exclude-dir=dist \
+            --exclude-dir=.terraform \
+            --include="*.py" \
+            --include="*.js" \
+            --include="*.env*"; then
+            
+            echo ""
+            echo "ERROR: Database connection string with credentials detected"
+            echo ""
+            echo "Fix: Use environment variables"
+            echo "  DATABASE_URL=postgresql://user:password@host:port/db"
+            echo ""
+            echo "Never commit connection strings with credentials!"
+            exit 1
+          fi
+          
+          echo "✅ No database connection strings with credentials found"
+
+      - name: Check for Sensitive Files
+        run: |
+          echo "Checking for sensitive files..."
+          SENSITIVE_PATTERNS=(".env" ".env.local" "*.pem" "*.key" "*.p12" "*.pfx" "credentials" "*.credentials")
+          FOUND=false
+          FOUND_FILES=""
+          
+          for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+            FILES=$(find . -name "$pattern" \
+              -not -path "./node_modules/*" \
+              -not -path "./venv/*" \
+              -not -path "./dist/*" \
+              -not -path "./.terraform/*" \
+              -not -name ".env.example")
+            
+            if [ -n "$FILES" ]; then
+              echo "Found sensitive file pattern: $pattern"
+              echo "$FILES"
+              FOUND=true
+              FOUND_FILES="$FOUND_FILES\n$FILES"
+            fi
+          done
+          
+          if [ "$FOUND" = true ]; then
+            echo ""
+            echo "ERROR: Sensitive files detected!"
+            echo ""
+            echo "Fix: Remove these files or add them to .gitignore"
+            echo "  1. Delete the files listed above (or move them outside the repo)"
+            echo "  2. Add patterns to .gitignore:"
+            echo "     .env"
+            echo "     .env.local"
+            echo "     *.pem"
+            echo "     *.key"
+            echo "     credentials"
+            echo "  3. Commit the changes"
+            echo ""
+            echo "SECURITY RISK: Don't commit sensitive files to Git!"
+            exit 1
+          fi
+          echo "✅ No sensitive files found"
+
+      - name: Check for Hardcoded IPs and Domains
+        continue-on-error: true  # Warning only
+        run: |
+          echo "Checking for hardcoded IP addresses and internal domains..."
+          
+          # Check for private IP addresses (could be internal infrastructure)
+          PRIVATE_IPS=$(grep -rE "10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3}" . \
+            --exclude-dir=node_modules \
+            --exclude-dir=venv \
+            --exclude-dir=dist \
+            --exclude-dir=.terraform \
+            --include="*.py" \
+            --include="*.js" \
+            --include="*.tf" \
+            | grep -v "example\|sample\|0.0.0.0" || true)
+          
+          if [ -n "$PRIVATE_IPS" ]; then
+            echo "⚠️  WARNING: Private IP addresses found"
+            echo "$PRIVATE_IPS" | head -5
+            echo ""
+            echo "Consider using variables or service discovery instead"
+          fi
+          
+          echo "✅ IP address check complete"
+
+      - name: Python Dependency Security Scan
+        continue-on-error: true  
+        run: |
+          if [ -f "app/backend/requirements.txt" ]; then
+            echo "Scanning Python dependencies for known vulnerabilities..."
+            
+            pip install safety
+            
+            if ! safety check --file app/backend/requirements.txt --output text; then
+              echo ""
+              echo "⚠️  Vulnerabilities found in dependencies (non-blocking)"
+              echo ""
+              echo "Fix: Update vulnerable packages"
+              echo "  pip install --upgrade <package-name>"
+              echo ""
+              echo "Check CVE details: https://safety.cybersecurity-help.cz/"
+            else
+              echo "✅ No known vulnerabilities in dependencies"
+            fi
+          fi
