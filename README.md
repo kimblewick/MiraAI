@@ -1,167 +1,116 @@
-# Project Title: Mira
-Short project summary (2–3 sentences).
-> This repository contains the full implementation of our CS6620 Cloud Computing Final Project. The application provides an AI-powered astrology chat assistant that generates personalized birth charts and interpretations.
+# MIRA AI ✨🌙
 
----
+An AI-powered astrology companion that turns your birth details into a personalized profile and lets you chat with **MIRA** for astrology-guided reflection, interpretations, and insights.
 
-### Team Members
-- Full Name: Erdun E
-- Full Name: Raj Kavathekar
-- Full Name: Davie Wu
+This repository contains the full implementation of our CS6620 Cloud Computing Final Project: a modern React SPA (frontend) backed by an AWS serverless API.
 
-**Team Roles**
-Describe what role each team member will take in this project and the tasks assigned to each member. 
-> Erdun E: Project Manager, Backend Expert, Software developer  
-> Raj Kavathekar: Senior Prompt Enginer, Frontend Expert, Web developer  
-> Davie Wu: Site Reliability Engineer, Infrastructure Expert, Junior Developer
+## 🎯 Project Overview
 
----
+MIRA blends an approachable **UI/UX** with a cloud-native backend to deliver a guided astrology chat experience:
 
-### Repository Structure
+- **Onboarding**: collect birth/profile details (used to personalize responses)
+- **Authentication**: sign in via **AWS Cognito Hosted UI**
+- **Chat**: send messages to the backend API (authenticated) and receive AI-generated responses
+- **Persistence**: store user profile + conversation history in **DynamoDB**
 
-Your repo must follow this layout:
+## ✨ Key Features
+
+- **Modern frontend experience**: responsive UI, onboarding flow, profile management, and chat layout
+- **Secure auth**: Cognito Hosted UI (OAuth flow) + JWTs for authenticated API requests
+- **Serverless backend**: API Gateway + Lambda handlers for chat/profile/conversation operations
+- **Cloud persistence**: DynamoDB tables for user profiles and conversations
+- **LLM integration**: AWS Bedrock client utilities for model calls (configurable)
+- **Deployment-ready infra**: Terraform modules for key AWS resources (S3/CloudFront, DynamoDB, Cognito, etc.)
+
+## 🛠️ Technical Implementation
+
+### Core Technologies
+
+- **Frontend**: React + Vite, Tailwind CSS, shadcn/ui, Framer Motion
+- **Backend**: Python (Lambda-style handlers), boto3, Pydantic
+- **Cloud**: AWS S3, CloudFront, Cognito, API Gateway, Lambda, DynamoDB, Bedrock, Secrets Manager, VPC
+- **IaC**: Terraform (`infra/terraform/`)
+
+### High-Level Cloud Flow
+
+1. **User → CloudFront → S3** serves the static React SPA
+2. **Login** via Cognito Hosted UI, returning tokens to the SPA
+3. SPA calls **API Gateway → Lambda** with JWT auth
+4. Lambdas read/write data in **DynamoDB** and call **Bedrock** (as configured)
+
+## 🚀 Getting Started
+
+### Frontend (local)
+
+```bash
+cd app/frontend
+npm install
+npm run dev
+```
+
+Frontend setup details (env vars, Cognito config): see `app/frontend/ENV_SETUP.md`.
+
+### Backend (local)
+
+```bash
+cd app/backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Backend dev guide: see `app/backend/README.md`.
+
+### Infrastructure (Terraform)
+
+Terraform code is in `infra/terraform/` and organized into reusable modules (S3/CloudFront, DynamoDB, Cognito, networking, etc.). See `infra/README.md` and module docs for details.
+
+## 📁 Project Structure
 
 ```
-/.github/    # CICD, Pull request template
-/app/        # Application source code
-/data/       # Data plan, data requirements or scripts
-/infra/      # IaC (Terraform/SAM/etc)
-/docs/       # Architecture, ERD, progress report, budget
-/scripts/    # Optional bash scripts
-/roles/      # json policies to follow for IAM roles
-/.gitignore/ # Ignore the log, cache and other docs
-README.md    # Project overview and documentation
+MiraAI/
+├── app/
+│   ├── frontend/              # React SPA (UI/UX + Cognito integration)
+│   └── backend/               # Lambda-style Python handlers + shared utilities
+├── infra/
+│   └── terraform/             # IaC modules for AWS resources
+├── docs/                      # Architecture diagrams, reports, screenshots
+├── scripts/                   # Helper scripts
+└── roles/                     # IAM policy JSONs used during development
 ```
 
----
+## ⚙️ Configuration
 
-### Project Overview
+Common frontend environment variables (see `app/frontend/ENV_SETUP.md`):
 
-#### Brief Description / Context
-A brief description/context of the problem you are approaching and problem understanding. 
+- **`VITE_API_BASE_URL`**: API Gateway base URL
+- **`VITE_AWS_COGNITO_USER_POOL_ID`**, **`VITE_AWS_COGNITO_CLIENT_ID`**, **`VITE_AWS_REGION`**
+- **Cognito Hosted UI domain** (required by the Hosted UI login flow)
 
-* Why is this topic relevant?
-  * AI emotional-support systems are increasingly important as users seek accessible, personalized guidance tools that are in compliance to mental health and user safety guardrails. The astrology aspect allows users to off-load some personal issues they face that are beyond their control, this allows them to reflect emotionally while having hard times be easy to swallow. The project explores how AI can deliver empathetic, context-aware responses while maintaining data security and reliability on the cloud.
-* Who does this topic affect? Where does it happen? When did it happen?
-  * This application primarily benefits individuals seeking lightweight emotional support or personal reflection in their daily lives. It is designed for users who follow horoscopes and want an interactive, AI-driven experience. 
-  * Mira is relevant in everyday contexts where users want brief, private, and accessible emotional support and especially during stressful or uncertain moments. It is globally applicable and always available, leveraging cloud scalability to ensure 24/7 access across time zones and devices.
-* What are your motivations for addressing this topic?
-  * Our team is interested in building AI chatbots and exploring how to host both the frontend and backend fully on the cloud. We’re curious about how an AI chatbot can interpret horoscope and astrology data to offer emotional support and real-time guidance to users. This project lets us combine technical exploration with a topic that feels engaging and personally meaningful.
+## 🧩 My Contributions (Raj Kavathekar)
 
+- **Frontend UI/UX (end-to-end)**: implemented the entire React SPA experience (landing, onboarding/profile, chat layout, styling, components)
+- **Cognito login system**: integrated Cognito Hosted UI OAuth flow on the frontend, including callback handling and token usage for authenticated calls
+- **Frontend ↔ AWS backend integration**: implemented API client patterns and wired UI flows to backend endpoints (profile, chat, conversation history)
+- **AWS architecture support**: helped design the system’s AWS architecture (CloudFront/S3 frontend, API Gateway/Lambda backend, DynamoDB persistence, Cognito auth)
+- **IaC contributions (Terraform)**: implemented/extended infrastructure modules used for **S3 + CloudFront static hosting** and **DynamoDB** resources
 
-**Proposed Solution:**  
-High-level description of the application, key features, and user flow.
-> - AI Astrology chatbot, that provides users with relevant astrology informartion, features and readings.
-> - AI Chat, Visualizations such as birth and various other charts, Horoscope Readings, customized profiles
-> - User creates account -> New user creates profile and puts in information -> Redirected to chat (Existing Users directly go to chat) -> We pull user information such as chat history and artifacts to provide it to that specific user -> User chats with AI -> API Calls -> Data is stored on our backend such as chat logs and artifects
+## 👥 Team
 
-**Cloud Provider:**  
-AWS / GCP / Azure (with justification).
-> AWS, we are using it as we have credits for it through our student account and we have academic experience with it through our class.
+- **Erdun E**: Project Manager, Backend Expert, Software Developer  
+- **Raj Kavathekar**: Frontend Expert, Web Developer  
+- **Davie Wu**: Site Reliability Engineer, Infrastructure Expert, Junior Developer
 
-**Programming Languages in this Project:**  
-Python/Java, and other programming languages approved by Prof GS for other parts of your project
-> Backend: Python  
-> Scripts: Bash  
-> Infra: Terraform  
-> Frontend: Javascript, HTML, CSS
+## 🏗️ Architecture & Documentation
 
----
+- Architecture diagrams, screenshots, and final report live under `docs/final/`
+- Original architecture board: `https://miro.com/app/board/uXjVJsOlhH8=/?share_link_id=35191105301`
 
-### Architecture
+## 🎥 Demo
 
-Your diagram must:
+Demo video: `https://drive.google.com/file/d/1Sy8Eb1_7Cw-riR4t4dP1GMPRweUN8jyP/view?usp=sharing`
 
-* Use official cloud icons
-* Use solid arrows for synchronous calls, dashed for asynchronous
-* Include high-level labels describing each component’s purpose
-* Include clear boundaries (public vs private)
+## 🧠 Generative AI (Disclosure)
 
-**Miro Diagram:**  
-[Click here to view the architecture diagram](https://miro.com/app/board/uXjVJsOlhH8=/?share_link_id=35191105301)
-Additionally include a PDF copy of your architecture under `\docs`.
-
-
-Answer the following questions.
-
-**List every service/tool you are using, with an explanation of why you chose that particular service for your application.**
-This includes specific services in your cloud provided, as well as external tools we've used during the semester (e.g. Docker, Terraform)
-> Cloud Services: S3, Cognito, Bedrock, DynamoDB, Lambda, VPC, API Gateway, Secrets Manager  
-
-> We are using S3 to host our static website and user artifacts as we learned how to do it in class and for ease of acces, we are using Cognito for authentication and security due to it's seamless integration with AWS backend and JWT. We are using Bedrock due to it's plethora of LLMs so we can test out different models from different providers to see which fits best for our task instead of committing to one through purchasing API credits. We are using DynamoDB to store the User Profile and Conversations as it is recommended by AWS to store chat history due to it's scaling features and low latency. We are using Lambda as we want our project to run on serverless architecture through Lambda functions, for convenience and scaling based on usage, we are hosting the backend on our VPC through AWS which we will access through our API Gateway and store keys in the Secrets Manager.
-
-> Developer Tools: Terraform, Base44, Cursor, VSCode  
-> Project Management: Miro, Notion, Slack, Github
-
-**How will users access your app? (VPC, Subnets, Security Groups)**
-> User → Cloudfront → Authentication → Request send to API Gateway to call the lambdas.
-
-**Where will your application run? (Serverless, containers, VMs)**
-> Serverless through Lambda functions and regional services.
-
-**How will resources and developers authenticate and authorize? (IAM roles, users or policies)**
-> IAM roles → admin, user(readonly)
-
-**How will your app handle failures? (AZs, backups, etc)**
-Your app must be in at least 2 AZs to ensure reliability
-> Hosting on 2+ AZs, redundant design
-
-
-**How will you manage latency and costs through auto-scaling/load balancing?**
-> We will manage latency by using CloudFront to route users efficiently, since we are serverless, we will handle costs through a pay-as-you-go-system to incur it on demand and by setting billing alarms to make sure 
-
----
-### Infrastructure as Code
-As a requirement for this project, you must develop IaC. Define how this will look for your particular project, and how you will do IaC and with which tools (e.g. Terraform).
-
->For our project's IaC, we are using serverless architecure, using Terraform we are defining Lambda functions and creating service modules that we plan on using for our backend. With the help of terraform we are planning and applying these changes and requesting services for our project through AWS.
-
----
-### IAM Roles and Policies
-Outline the IAM Roles you need to create for this project and explain why each role is necessary.
-> Roles:  
-> Davie: Administrator, is responsible for applying changes and allocating resources on AWS through Terraform.  
-> Raj and Erdun: Power User, have same access as administrator and can view and allocate resources through the AWS console.
-
-For this phase you must complete all IAM policies and store them in this repo under `\roles`.
-
-
----
-
-### Project Budget
-
-Use the [website](https://instances.vantage.sh/) already provided to you during the course to create a project budget. Under `\docs`, you should add a spreadsheet with all the different resources you plan to use during the project and the projected cost.
-
-Use the structure below for your spreadsheet. Feel free to add additional columns.
-
-| Service | Resource | Estimated usage time | Total Estimated cost |
-|---|---|---|---|
-
-Add up time and cost at the end of the columns.
-
----
-
-### References
-
-Any resources or citations should be listed here
-[]  
-Astrology API: https://github.com/g-battaglia/v4.astrologer-api
-
----
-
-### Demo video
-[5MinVideo](https://drive.google.com/file/d/1Sy8Eb1_7Cw-riR4t4dP1GMPRweUN8jyP/view?usp=sharing)
-
----
-
-### Use of Generative AI (Full Disclosure)
-
-Tool usage (summary):
-
-- **ChatGPT**: Used to rephrase and polish wording in our README, progress documents, and this final report, and to refine pull request descriptions based on text we had already written.
-- **Claude AI**: Used to talk through debugging strategies and understand error messages or edge cases; we then wrote and modified the actual code ourselves.
-- **Base44**: Used at the very beginning of the project to scaffold an initial React frontend template provided as part of the course resources; we customized and extended this code manually and did not use Base44 for cloud infrastructure, Terraform, or report writing.
-- **Cursor AI assistant**: Used inside the IDE for small refactors, formatting, and comment/variable name suggestions, and to surface potential bugs; we treated these as hints and only committed changes we understood.
-- **Arcade**: Used solely to record and share our demo video; it did not generate any code or written project content.
-
-We did **not** use any Generative AI tools to generate cloud-related code (including Terraform, AWS configuration, or CI/CD), to write tests or data models, or to design our architecture. All technical decisions, infrastructure definitions, and application logic were created by the team, with AI tools used only to improve clarity, organization, and presentation of material we authored ourselves. 
+- Used AI tools for wording polish, debugging discussion, and small refactors/suggestions in-editor.
+- We did **not** use Generative AI to create Terraform/cloud configuration or core system architecture decisions.
