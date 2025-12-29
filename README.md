@@ -4,6 +4,9 @@ An AI-powered astrology companion that turns your birth details into a personali
 
 This repository contains the full implementation of our CS6620 Cloud Computing Final Project: a modern React SPA (frontend) backed by an AWS serverless API.
 
+<img width="2628" height="1302" alt="image" src="https://github.com/user-attachments/assets/9a9ba66e-a4fb-4eec-b921-6aec58d4a1a8" />
+
+
 ## 🎯 Project Overview
 
 MIRA blends an approachable **UI/UX** with a cloud-native backend to deliver a guided astrology chat experience:
