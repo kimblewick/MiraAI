@@ -38,32 +38,7 @@ MIRA blends an approachable **UI/UX** with a cloud-native backend to deliver a g
 3. SPA calls **API Gateway → Lambda** with JWT auth
 4. Lambdas read/write data in **DynamoDB** and call **Bedrock** (as configured)
 
-## 🚀 Getting Started
-
-### Frontend (local)
-
-```bash
-cd app/frontend
-npm install
-npm run dev
-```
-
-Frontend setup details (env vars, Cognito config): see `app/frontend/ENV_SETUP.md`.
-
-### Backend (local)
-
-```bash
-cd app/backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-Backend dev guide: see `app/backend/README.md`.
-
-### Infrastructure (Terraform)
-
-Terraform code is in `infra/terraform/` and organized into reusable modules (S3/CloudFront, DynamoDB, Cognito, networking, etc.). See `infra/README.md` and module docs for details.
+> Note: The AWS resources for this class project have been terminated, so the live deployment is not currently runnable/testable.
 
 ## 📁 Project Structure
 
@@ -79,15 +54,7 @@ MiraAI/
 └── roles/                     # IAM policy JSONs used during development
 ```
 
-## ⚙️ Configuration
-
-Common frontend environment variables (see `app/frontend/ENV_SETUP.md`):
-
-- **`VITE_API_BASE_URL`**: API Gateway base URL
-- **`VITE_AWS_COGNITO_USER_POOL_ID`**, **`VITE_AWS_COGNITO_CLIENT_ID`**, **`VITE_AWS_REGION`**
-- **Cognito Hosted UI domain** (required by the Hosted UI login flow)
-
-## 🧩 My Contributions (Raj Kavathekar)
+## 🧩 My Contributions
 
 - **Frontend UI/UX (end-to-end)**: implemented the entire React SPA experience (landing, onboarding/profile, chat layout, styling, components)
 - **Cognito login system**: integrated Cognito Hosted UI OAuth flow on the frontend, including callback handling and token usage for authenticated calls
