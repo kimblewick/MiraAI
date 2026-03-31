@@ -16,6 +16,35 @@ MIRA blends an approachable **UI/UX** with a cloud-native backend to deliver a g
 - **Chat**: send messages to the backend API (authenticated) and receive AI-generated responses
 - **Persistence**: store user profile + conversation history in **DynamoDB**
 
+### Architecture
+
+```mermaid
+graph LR
+    User([User]) --> CF[CloudFront CDN]
+    CF --> S3[S3 Static Hosting]
+    S3 --> React[React SPA]
+    
+    React --> Cognito[Cognito Auth]
+    Cognito --> React
+    
+    React --> APIGW[API Gateway]
+    APIGW --> Lambda[Lambda Functions]
+    Lambda --> DDB[(DynamoDB)]
+    Lambda --> Bedrock[Bedrock LLM]
+    Lambda --> SM[Secrets Manager]
+    
+    subgraph AWS Cloud
+        CF
+        S3
+        Cognito
+        APIGW
+        Lambda
+        DDB
+        Bedrock
+        SM
+    end
+```
+
 ## ✨ Key Features
 
 - **Modern frontend experience**: responsive UI, onboarding flow, profile management, and chat layout
@@ -33,6 +62,20 @@ MIRA blends an approachable **UI/UX** with a cloud-native backend to deliver a g
 - **Backend**: Python (Lambda-style handlers), boto3, Pydantic
 - **Cloud**: AWS S3, CloudFront, Cognito, API Gateway, Lambda, DynamoDB, Bedrock, Secrets Manager, VPC
 - **IaC**: Terraform (`infra/terraform/`)
+
+### AWS Services Used
+
+| Service | Purpose |
+|---------|---------|
+| **S3** | Static frontend hosting |
+| **CloudFront** | CDN for global distribution and HTTPS |
+| **Cognito** | User authentication (OAuth 2.0 / Hosted UI) |
+| **API Gateway** | REST API routing with JWT authorization |
+| **Lambda** | Serverless backend compute |
+| **DynamoDB** | NoSQL persistence for user profiles and conversations |
+| **Bedrock** | LLM inference for astrology-themed AI responses |
+| **Secrets Manager** | Secure credential storage |
+| **VPC** | Network isolation for Lambda functions |
 
 ### High-Level Cloud Flow
 
@@ -64,6 +107,23 @@ MiraAI/
 - **Frontend ↔ AWS backend integration**: implemented API client patterns and wired UI flows to backend endpoints (profile, chat, conversation history)
 - **AWS architecture support**: helped design the system’s AWS architecture (CloudFront/S3 frontend, API Gateway/Lambda backend, DynamoDB persistence, Cognito auth)
 - **IaC contributions (Terraform)**: implemented/extended infrastructure modules used for **S3 + CloudFront static hosting** and **DynamoDB** resources
+
+> **Infrastructure as Code:** All AWS resources are defined and managed through Terraform modules in `infra/terraform/`, enabling reproducible deployments and version-controlled infrastructure changes. This includes S3/CloudFront static hosting, DynamoDB tables, Cognito user pools, API Gateway configuration, and Lambda function deployments.
+
+## 💰 Cost Model
+
+MIRA uses a fully serverless architecture, meaning costs scale to zero when idle:
+
+| Resource | Pricing Model | Estimated Cost (Low Traffic) |
+|----------|--------------|------------------------------|
+| S3 + CloudFront | Pay per request + storage | ~$1-2/month |
+| Cognito | Free tier: 50,000 MAU | $0 |
+| API Gateway | $3.50 per million requests | <$1/month |
+| Lambda | Free tier: 1M requests/month | $0 |
+| DynamoDB | On-demand: pay per read/write | <$1/month |
+| Bedrock | Per-token pricing (model dependent) | Variable |
+
+**Total estimated cost for a low-traffic deployment: <$5/month** (excluding Bedrock inference costs, which vary by usage and model selection).
 
 ## 👥 Team
 
